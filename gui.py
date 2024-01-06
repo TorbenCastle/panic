@@ -7,8 +7,7 @@ import threading
 import sys
 import traceback
 
-from panic_handler import Osc_client
-
+#from panic_handler import osc_clients
 
 
 
@@ -113,7 +112,7 @@ class EditClientWindow(PopupWindow):
             self.text_vars[1].set(str(selected_client.get_client_id()))
             self.text_vars[2].set(selected_client.get_ip())
             self.text_vars[3].set(str(selected_client.get_port()))
-            self.text_vars[4].set(selected_client.get_station_type())
+            self.text_vars[4].set(selected_client.get_client_type())
 
 
     def save_changes(self):
@@ -136,8 +135,8 @@ class EditClientWindow(PopupWindow):
             # Example: self.name_entry.delete(0, tk.END)
             # Example: self.name_entry.insert(0, selected_client.get_name())
             
-            #here we need to recreate the upd server
-            self.gui_handler.print_osc_clients(client_new)
+            #print out edited client. True = existing client
+            self.gui_handler.print_osc_client(selected_client , True)
             
         self.gui_handler.text_handler.write_config(self.osc_clients)
         self.gui_handler.update_labels()
@@ -262,7 +261,7 @@ class GuiHandler:
         current_column = 1
         
         for client in self.osc_clients:
-            if client.get_station_type() == 'trigger':
+            if client.get_client_type() == 'trigger':
                 self.button = tk.Button(self.client_A_buttons,width=6, height=6, text=client.name, command=lambda c=client: self.gui_ping_client(c), fg="black", bg="white" )
                 self.button.grid(row=1, column=current_column,columnspan=2 ,  padx=(5 , 5) , pady=5)
                 
@@ -274,7 +273,7 @@ class GuiHandler:
         self.osc_client_BC_frame.grid(row=0, column=1, rowspan=1, columnspan=1,padx=4 , sticky="nsew")
         current_row = 0
         for client in self.osc_clients:
-            if client.get_station_type() in ['station', 'gma3']:  # Use 'in' to check against multiple values
+            if client.get_client_type() in ['station', 'gma3']:  # Use 'in' to check against multiple values
                 self.button = tk.Button(self.osc_client_BC_frame, text=client.name, command=lambda c=client: self.gui_ping_client(c), fg="black", bg="white" , width=8)
                 self.button.grid(row=current_row, column=1, padx=(3 , 3) , pady=5)
                 self.client_buttons.append(self.button)
@@ -356,33 +355,32 @@ class GuiHandler:
     def gui_ping_client(self, client):
         self.print_command(f"Ping {client.get_name()} at {client.get_ip()}:{client.get_port()}")
         
-        self.osc_handler.request_command(client.client_id)
+        self.osc_handler.request_command(client)
+     
         
-    def gui_set_client_online_status(self, client_id, value):
-        client = self.osc_clients[client_id-1]
+    #we need the value only to set the online status
+    def gui_update_online_status(self, client ,  value):
+        client_button_id = client.get_client_id() - 1
 
-        if client.get_station_type() == "trigger":
-            if client.get_trigger() == True:
-                self.client_buttons[client_id-1].configure(bg="red")
-            elif client.get_requested() == True:
-                self.client_buttons[client_id-1].configure(bg="#00FFFF")
-            elif value == True:
-                self.client_buttons[client_id-1].configure(bg="white")
-            else:
-                self.client_buttons[client_id-1].configure(bg="#555555")
-        elif client.get_station_type() in ["station", "gma3"]:
-            if client.get_requested() == True:
-                self.client_buttons[client_id-1].configure(bg="#00FFFF")
-            elif value == True:
-                self.client_buttons[client_id-1].configure(bg="white")
-            else:
-                self.client_buttons[client_id-1].configure(bg="#555555")
+        #only update the button if the clients button was not pressed
+        if client.get_client_type() == "trigger":
+            if client.get_button_was_pressed_state() == True:
+                self.client_buttons[client_button_id].configure(bg="red")
+                return
+                
+        if client.get_requested_flag() == True:
+            self.client_buttons[client_button_id].configure(bg="#00FFFF") 
+        elif value == True:
+            self.client_buttons[client_button_id].configure(bg="white")
+        else:
+            self.client_buttons[client_button_id].configure(bg="#555555")
+         
                 
         #button list: 0 = confirm_button, 1 = send, 2 = edit, 3 = info, 4 = show log, 5 = exit
         #functions.
-    def button_function(self, button_ID):
+    def button_function(self, button_id):
         
-        if button_ID == 0:
+        if button_id == 0:
             
             # send a stop / confirm command to all stations
             self.print_command_log("sending stop command to all stations")
@@ -391,30 +389,30 @@ class GuiHandler:
             #self.show_popup("stop")      
             
         #send the commandline to commandline_handler           
-        elif button_ID == 1:
+        elif button_id == 1:
             
             self.send_command_line()
             
-        elif button_ID == 2:
+        elif button_id == 2:
             self.print_command_log("Edit clients")
             self.show_popup("Edit_clients")
             
-        elif button_ID == 3:
+        elif button_id == 3:
             self.print_command_log("Info")
             self.show_popup("Info")
             
-        elif button_ID == 4:
+        elif button_id == 4:
             #self.simpledialog.messagebox.showinfo(self.text_handler("log"))
             self.show_popup("Log")
             
-        elif button_ID == 5:
+        elif button_id == 5:
             self.toggle_logging()  
             if not self.logging:
                 self.toggle_log_button.config(relief=tk.RAISED)
             else:
                 self.toggle_log_button.config(relief=tk.SUNKEN)
             
-        elif button_ID == 6:            
+        elif button_id == 6:            
              self.show_popup("Exit")
          
             
@@ -503,24 +501,24 @@ class GuiHandler:
                 self.info_window.destroy() 
 
 #update the status of the buttons
-    def set_status(self, client_id , value):
+    def set_pressed_status(self, client_button_id , value):
+        client_button_id -= 1 # get the right index
         
         if(value == True):
-            self.client_buttons[client_id-1].configure(bg="red")
+            self.client_buttons[client_button_id].configure(bg="red")
             
         else:
-            #if(self.osc_clients[client_id-1].get_online_status() == True):                
-             self.client_buttons[client_id-1].configure(bg="white")
+            #if the client is online set the button to white if online or dark grey if offline
+            if(self.osc_clients[client_button_id].get_online_status() == True):
+                self.client_buttons[client_button_id].configure(bg="white")
+            else:
+                self.client_buttons[client_button_id].configure(bg="#555555")
             
-    def print_osc_clients(self, client):
-        
-        self.print_command(client.get_name())
-        self.print_command(client.get_client_id())
-        self.print_command(client.get_ip())
-        self.print_command(client.get_port())
-        self.print_command(client.get_station_type())
-        
-    
+    def print_osc_client(self, client, old):
+        if old:self.print_command("Client saved")
+        else: self.print_command("Client added")
+        self.print_command(f"Name:    {client.get_name()} ID: {client.get_client_id()} type: {client.get_client_type()} ")
+        self.print_command(f"Address: {client.get_ip()}:{client.get_port()}")    
     
         
 
