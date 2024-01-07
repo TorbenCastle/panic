@@ -1,11 +1,11 @@
 
-from re import I, S
+
 import tkinter as tk
-from tkinter import scrolledtext ,SE, ttk, messagebox , simpledialog
-import time
-import threading
+from tkinter import scrolledtext , ttk 
 import sys
-import traceback
+from osc_client import Osc_client
+from commands import Commands
+from configparser import ConfigParser
 
 #from panic_handler import osc_clients
 
@@ -129,7 +129,7 @@ class EditClientWindow(PopupWindow):
             selected_client.set_client_id(int(self.text_vars[1].get()))
             selected_client.set_ip(self.text_vars[2].get())
             selected_client.set_port(int(self.text_vars[3].get()))
-            selected_client.set_station_type(self.text_vars[4].get())
+            selected_client.set_client_type(self.text_vars[4].get())
 
             # Optionally, update other elements in your GUI
             # Example: self.name_entry.delete(0, tk.END)
@@ -359,21 +359,27 @@ class GuiHandler:
      
         
     #we need the value only to set the online status
-    def gui_update_online_status(self, client ,  value):
+    def gui_update_button_status(self, client ,  command):
         client_button_id = client.get_client_id() - 1
-
+        
         #only update the button if the clients button was not pressed
         if client.get_client_type() == "trigger":
-            if client.get_button_was_pressed_state() == True:
+            if client.get_button_was_pressed_state():
                 self.client_buttons[client_button_id].configure(bg="red")
                 return
-                
-        if client.get_requested_flag() == True:
-            self.client_buttons[client_button_id].configure(bg="#00FFFF") 
-        elif value == True:
-            self.client_buttons[client_button_id].configure(bg="white")
-        else:
-            self.client_buttons[client_button_id].configure(bg="#555555")
+        
+        if command == "online":self.client_buttons[client_button_id].configure(bg="white")
+            
+        if command == "offline":self.client_buttons[client_button_id].configure(bg="#555555")
+          
+        if command == "clear":
+            if client.get_online_status: self.client_buttons[client_button_id].configure(bg="white")
+            else: self.client_buttons[client_button_id].configure(bg="#555555")
+            
+        if command == "requested":self.client_buttons[client_button_id].configure(bg="#00FFFF")
+           
+           
+        
          
                 
         #button list: 0 = confirm_button, 1 = send, 2 = edit, 3 = info, 4 = show log, 5 = exit

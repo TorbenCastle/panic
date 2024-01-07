@@ -1,3 +1,8 @@
+import os
+from configparser import ConfigParser
+from osc_client import Osc_client
+
+
 
 class File_handler:
     def __init__(self, name):

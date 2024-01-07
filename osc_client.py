@@ -1,3 +1,8 @@
+import time
+from pythonosc import udp_client
+from configparser import ConfigParser
+
+
 
         
 class Osc_client:
@@ -43,8 +48,8 @@ class Osc_client:
         
         if self.client_type == "gma3":
             return(str(self.client_id) , self.get_C_command(val, cmd))
-        elif cmd == "trigger":
-                cmd = (f"trigger {str(val)}")
+        elif cmd == "status":
+                cmd = (f"status {str(val)}")
         else:
             val = self.client_id
         return (str(self.client_id) , str(val) , str(cmd))
@@ -57,7 +62,7 @@ class Osc_client:
             val = int(val)
         except (ValueError, TypeError):
             return False
-        if cmd == "trigger":
+        if cmd == "status":
             if(self.mode == "normal"):
                 gma3_cmd = (f"Go+ Sequence {str(6000 + val)}") 
             elif(self.mode == "stage"):
@@ -168,9 +173,9 @@ class Osc_client:
             if elapsed_time > self.timeout_threshold:
                 self.stop_timer()
                 self.set_requested_flag(False)
-                self.gui.print_command(f"Timeout: Client {self.name} ID:{self.client_id} is not available.")  
+                self.gui.print_command_log(f"Timeout: Client {self.name} ID:{self.client_id} is not available.")  
                 self.online = False                
-                self.gui.gui_update_online_status(self , False)
+                self.gui.gui_update_button_status(self , "offline")
                 
     def get_online_status(self):
         return self.online  
@@ -178,12 +183,7 @@ class Osc_client:
     def set_online_status(self, val):
         self.online = val
         
-    def set_status(self, value):
-        self.status = value
-    
-    def get_status(self):
-        return self.status
-  
+ 
 
     def start_timer(self):
         self.timer_start = time.time()
