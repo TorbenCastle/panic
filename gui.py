@@ -6,7 +6,7 @@ import sys
 from osc_client import Osc_client
 from commands import Commands
 from configparser import ConfigParser
-
+import RPi.GPIO as GPIO
 #from panic_handler import osc_clients
 
 
@@ -414,7 +414,7 @@ class GuiHandler:
         elif button_id == 5:
             self.toggle_logging()  
             if not self.logging:
-                self.toggle_log_button.config(relief=tk.RAISED)
+                self.toggle_log_button.config(relyief=tk.RAISED)
             else:
                 self.toggle_log_button.config(relief=tk.SUNKEN)
             
@@ -534,7 +534,7 @@ class GuiHandler:
             
             self.osc_handler.set_exit_flag()
             self.osc_handler.handle_thread.join()
-                        
+            GPIO.cleanup()
             self.osc_handler.server.shutdown()
             print("programm closed")
             sys.exit(0)

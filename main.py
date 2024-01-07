@@ -8,13 +8,17 @@ from osc_server import Osc_command_handler
 from gui import GuiHandler
 from file_handler import File_handler
 from osc_client import Osc_client
-
+                                                                        
 
 
 
 
 def main():
     try:
+            
+            
+
+     
         
         server_commands = commands.Commands("server_commands")
         text_handler = File_handler("text_handler")
@@ -32,7 +36,7 @@ def main():
         
         
         osc_dispatcher = Dispatcher()   
-        osc_handler = Osc_command_handler(osc_dispatcher, "0.0.0.0", 9050, osc_clients , gui , server_commands , text_handler)
+        osc_handler = Osc_command_handler(osc_dispatcher, "0.0.0.0", 9090, osc_clients , gui , server_commands , text_handler)
         
         
 

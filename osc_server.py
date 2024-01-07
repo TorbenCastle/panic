@@ -16,7 +16,7 @@ import queue
 import commands
 from gui import GuiHandler
 from datetime import datetime
-
+import RPi.GPIO as GPIO
 
 
 
@@ -77,7 +77,27 @@ class Osc_command_handler:
         time.sleep(0.4)
         self.gui.print_command("Waiting for clients")
 
+
+   # GPIO pin for the relay
+        self.RELAY_PIN = 18  # Change this to the actual GPIO pin you are using
+
+          # Setup GPIO
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.RELAY_PIN, GPIO.OUT, initial=GPIO.LOW)  # Set initial state to LOW
+        
+       
+
 ###########################   MAIN PART FROM COMMAND HANDLING   ####################
+     
+    def trigger_relay(self):
+        print("Triggering relay!")
+        # Add code here to trigger the relay (e.g., set GPIO pin high)
+        GPIO.output(self.RELAY_PIN, GPIO.HIGH)
+        time.sleep(15)  # Wait for 45 seconds
+        GPIO.output(self.RELAY_PIN, GPIO.LOW)  # Turn off the relay
+
+    
+    
     def handle_loop(self):
        
         while not self.exit_flag:
@@ -175,8 +195,8 @@ class Osc_command_handler:
         elif input_command == "msg":            
             self.gui.print_command(msg)
             
-        elif "debug" in input_command:            
-            self.gui.print_command(f"debug command from {client.get_name()}")   
+        elif input_command == "debug":            
+            self.trigger_relay()
             
         elif "special" in input_command:            
             self.gui.print_command(f"special command from {client.get_name()}") 
