@@ -6,9 +6,13 @@ import sys
 from osc_client import Osc_client
 from commands import Commands
 from configparser import ConfigParser
-import RPi.GPIO as GPIO
-#from panic_handler import osc_clients
 
+#from panic_handler import osc_clients
+try:
+    import RPi.GPIO as GPIO
+    on_raspberry_pi = True
+except ImportError:
+    on_raspberry_pi = False
 
 
 
@@ -218,12 +222,12 @@ class GuiHandler:
         self.create_gui()
         self.print_command("GUI initialized")
         self.next_command = None        
-        self.osc_handler = None
+        self.osc_server = None
         self.root.protocol("WM_DELETE_WINDOW", self.exit_programm)
         
 
-    def set_osc_handler(self, osc_handler):
-        self.osc_handler = osc_handler    
+    def set_osc_server(self, osc_server):
+        self.osc_server = osc_server    
 
         
         
@@ -340,22 +344,21 @@ class GuiHandler:
             
     def send_command_line(self):
         command = self.command_line.get()  # Get the command from the entry
-        if command != None:
-            
+        if len(command) > 0:
+            print(f"commandline {command}")
+            command = str(command)
             self.print_command(command)
-            self.osc_handler.gui_command(command)            
-            
-        
-        self.command_line.delete(0, tk.END)
+            self.osc_server.gui_command(command) 
+            self.command_line.delete(0, tk.END)
         
     def gui_ping_all_clients(self):
         self.print_command("Ping all clients")
-        self.osc_handler.request_all_command()
+        self.osc_server.send_ping_all_command()
         
     def gui_ping_client(self, client):
         self.print_command(f"Ping {client.get_name()} at {client.get_ip()}:{client.get_port()}")
         
-        self.osc_handler.request_command(client)
+        self.osc_server.send_ping_command(client)
      
         
     #we need the value only to set the online status
@@ -389,8 +392,8 @@ class GuiHandler:
         if button_id == 0:
             
             # send a stop / confirm command to all stations
-            self.print_command_log("sending stop command to all stations")
-            self.osc_handler.confirm_command(0)
+            self.print_command_log("Stop station alert")
+            self.osc_server.received_confirm_command(0)
             
             #self.show_popup("stop")      
             
@@ -532,10 +535,10 @@ class GuiHandler:
              
         try:
             
-            self.osc_handler.set_exit_flag()
-            self.osc_handler.handle_thread.join()
-            GPIO.cleanup()
-            self.osc_handler.server.shutdown()
+            self.osc_server.set_exit_flag()
+            self.osc_server.handle_thread.join()
+            if on_raspberry_pi:GPIO.cleanup()            
+            self.osc_server.server.shutdown()
             print("programm closed")
             sys.exit(0)
         except Exception as e:

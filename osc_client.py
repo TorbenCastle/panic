@@ -23,72 +23,93 @@ class Osc_client:
         #self.status = False
         self.client = None
         
-        self.requested = False  # Initialize the requested flag to false 
+        self.ping_request_flag = False  # Initialize the requested flag to false 
         self.timer_start = None  # Initialize the timer start time to None
         self.response_time = None  # Initialize the response time to None
         self.timeout_threshold = 5  # Set the timeout threshold to 5 seconds
         self.online = False # Initialize the online status to False
+        self.message_commands = ["msg" , "var1" , "var2"]
+
+
+    def send_msg(self, cmd, *args):
+        receiver = udp_client.SimpleUDPClient(self.ip, self.port)
+        print(cmd, *args)
+        if self.client_type == "gma3":
+            if len(args) == 0:
+                self.gui.print_command_log("Error: Invalid number of arguments for 'msg' command")
+                return
+           
+        msg = " ".join(map(str, args))
+        msg = msg.strip()
+        message = f'setUserVar "message_in" "{str(msg)}"'
         
+        print(message)
+        
+        self.gui.print_command(f"Sending {message} command to grandma3")
+        receiver.send_message("/cmd", [message])
+        time.sleep(0.1)
+        receiver.send_message("/cmd", ["Call plugin 6"])  
+
 
     #send command function
-    def send_data(self , value , cmd):
+    def send_data(self,value, cmd , msg = None):
+        # if its a message command, build the message
+        if(cmd in self.message_commands):
+            self.send_msg_to_client(msg)
+            return
+        if(cmd == "status"):id_value = value
+        else:
+            id_value = self.client_id   
         
-        #set up the udp client
+        #set up the udp client before sending the command
         receiver = udp_client.SimpleUDPClient(self.ip, self.port)
+        #the address ("/cmd") can be filtered by the osc client)
         #gma3 is recieving a command with only one argument
         if self.client_type == "gma3":
             receiver.send_message("/cmd", [cmd])
-            self.gui.print_command_log(f"Sending /cmd , {cmd} command to {self.name}")
+            self.gui.print_command_log(f"Sending /cmd,{cmd}")
+        else:       
+            receiver.send_message("/cmd", [id_value , cmd])
+           
+            self.gui.print_command_log(f"Sending /cmd,{id_value},{cmd}")
+        
+    def get_command(self, cmd , val ):
             
-            return        
-        receiver.send_message("/cmd", [value , cmd])        
-        
-        
-    def get_command(self, val, cmd):
-        
+        #if the client is a gma3, the command is different, status command can send to different sequences
         if self.client_type == "gma3":
-            return(str(self.client_id) , self.get_C_command(val, cmd))
+            return(self.get_C_command(val, str(cmd)))
+        
+        #the status command is adding the trigger if, to start different sequences
         elif cmd == "status":
                 cmd = (f"status {str(val)}")
         else:
             val = self.client_id
-        return (str(self.client_id) , str(val) , str(cmd))
+        
+        return (str(val) , str(cmd))
+        
     
 
     #commands send to grandma3
     def get_C_command(self, val, cmd):
-        try:
-            
-            val = int(val)
-        except (ValueError, TypeError):
-            return False
-        if cmd == "status":
-            if(self.mode == "normal"):
-                gma3_cmd = (f"Go+ Sequence {str(6000 + val)}") 
-            elif(self.mode == "stage"):
-                gma3_cmd = "On Sequence 6008" # we can set the button modus here
-                
-        elif cmd == "debug":
-             gma3_cmd = "Go+ Sequence 6006"
-             
-        elif cmd == "special":
-             gma3_cmd = "Go+ Sequence 6007"
-             
-        elif cmd == "released":
-             gma3_cmd = "Off Sequence 6008"
-            
-        elif cmd == "stop":
-            gma3_cmd = "Go+ Sequence 6009" 
-            
-        elif cmd == "confirm":
-            gma3_cmd = "Go+ Sequence 6010"
-            
-        elif cmd == "ping":
-            gma3_cmd = "Go+ Sequence 6011"
-        else:
+                    
+
+        command_mappings = {
+            "status": f"Go+ Sequence {6000 + val}" if self.mode == "normal" else "On Sequence 6008",
+            "stop": "Go+ Sequence 6009",
+            "ping": "Go+ Sequence 6011",
+            "debug": "Go+ Sequence 6006",
+            "special": "Go+ Sequence 6007",
+            "released": "Off Sequence 6008",
+            "confirm": "Go+ Sequence 6010",             
+        }
+
+        gma3_cmd = command_mappings.get(cmd, None)
+
+        if gma3_cmd is None:
             self.gui.print_command("Command not found for grandma3")
-        
-        return (gma3_cmd)
+            return False
+
+        return (self.client_id , gma3_cmd)
 
 
     def set_mode(self, modus):
@@ -157,22 +178,22 @@ class Osc_client:
     def get_button_was_pressed_state(self):
         return self.button_status
 
-    def set_requested_flag(self, value):
-            self.requested = value
+    def set_ping_request_flag(self, value):
+            self.ping_request_flag = value
             if value:                
                 self.start_timer()
             else:                
                 self.stop_timer()
                 
-    def get_requested_flag(self):
-        return self.requested
+    def get_ping_request_flag(self):
+        return self.ping_request_flag
 
     def check_ping_timeout(self):
         if self.timer_start is not None:
             elapsed_time = time.time() - self.timer_start
             if elapsed_time > self.timeout_threshold:
                 self.stop_timer()
-                self.set_requested_flag(False)
+                self.ping_request_flag = False
                 self.gui.print_command_log(f"Timeout: Client {self.name} ID:{self.client_id} is not available.")  
                 self.online = False                
                 self.gui.gui_update_button_status(self , "offline")
