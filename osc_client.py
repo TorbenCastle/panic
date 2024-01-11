@@ -33,7 +33,7 @@ class Osc_client:
 
     def send_msg(self, cmd, *args):
         receiver = udp_client.SimpleUDPClient(self.ip, self.port)
-        print(cmd, *args)
+       
         if self.client_type == "gma3":
             if len(args) == 0:
                 self.gui.print_command_log("Error: Invalid number of arguments for 'msg' command")
@@ -43,8 +43,7 @@ class Osc_client:
         msg = msg.strip()
         message = f'setUserVar "message_in" "{str(msg)}"'
         
-        print(message)
-        
+                
         self.gui.print_command(f"Sending {message} command to grandma3")
         receiver.send_message("/cmd", [message])
         time.sleep(0.1)

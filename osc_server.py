@@ -133,11 +133,10 @@ class Osc_server:
             self.check_relay_timer()
                     
     #listen to incoming messages, the dispatcher is calling this function and its filter is "/cmd" and take the command to the receive queue
-    def receive_command(self, address, *args):
-        full_command = f"Received command: {address},{args}"
-        self.gui.print_command_log(full_command)  # Print the full received command to the GUI command line
+    def receive_command(self, address, *args):        
+        self.gui.print_command_log(f"Received command: {address},{args}")  # Print the full received command to the GUI command line
         self.receive_queue.put(args)
-        print(address, args)
+        
 
     #get tuples from received commands from queue
     def receive_queue_function(self):
@@ -188,7 +187,7 @@ class Osc_server:
             "trigger": lambda: (self.received_button_command(client), self.relay_on()),
             "confirm": lambda: self.received_confirm_command(client),
             "released": lambda: self.received_released_command(client),
-            "msg": lambda: self.gui.print_command(f"{client.get_name()} {command_value}"),
+            "msg": lambda: (self.gui.create_chat_message(client.get_name(),command_value)),
             "debug": lambda: self.gui.print_command("Debug message"),
             "extra": lambda: self.gui.print_command("Extra message"),
             "special": lambda: self.gui.print_command("Special message"),
@@ -317,12 +316,14 @@ class Osc_server:
     def send_special_command(self, client):
         self.send_queue.put(client.get_command("special",client.get_client_id()))
         self.gui.print_command_log(f"Sending extra command to {client.get_name()}")
-    
+        
+
+    #send a chat message to a station
     def send_msg(self, client, msg):
+        if not isinstance(client, Osc_client):
+            client = self.osc_clients[client-1]
         if client.client_type == "gma3" or "gma2":
-            client.send_msg_command("msg" ,  msg)            
-            self.gui.print_command_log(f"Sending message to {client.get_name()}:   {msg}")
-            
+            client.send_msg("msg" ,  msg)            
         else: self.gui.print_command(f"Messages can only send to grandma")
         
     #after 60 seconds the next client is pinged
@@ -358,7 +359,7 @@ class Osc_server:
         try:
             #read out send queue and send the command to the client of the corrosponding ID in the send_msg
             send_msg = self.send_queue.get()
-            print(send_msg)
+            
             client_id = int(send_msg[0])
             client = self.osc_clients[client_id-1]  
             value = send_msg[0]
@@ -380,7 +381,7 @@ class Osc_server:
 
 #this function is called when a command is entered in the gui commandline
     def gui_command(self, command):
-        print(f"gui_command = {command}")
+       
 
         if len(command) == 0:
             return
@@ -392,11 +393,11 @@ class Osc_server:
             else:
                 msg = " ".join(args[3:])
             #try:
-            print("send or get ")
+           
             # type in name, id, or ip to get the target client
             #client = self.get_client(args[1])
             client = self.osc_clients[int(args[1])-1]
-            print(client.get_name())
+           
             if client in self.osc_clients:
                 if "send" in args[0]:
                     self.commandline_send_cmd(client, args[2], msg)
@@ -462,7 +463,7 @@ class Osc_server:
                       
     #commands the server can send      
     def commandline_send_cmd(self, client , command , msg):        
-        print(f"client: {client.get_name()}")         
+              
         if command in self.send_cmd_list:
             self.gui.print_command(f"Sending test: {command} to {client.get_name()} with {msg} ")
             #send gloabal status update to all station clients
