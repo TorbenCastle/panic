@@ -49,7 +49,13 @@ class Osc_client:
         time.sleep(0.1)
         receiver.send_message("/cmd", ["Call plugin 6"])  
 
-
+    def request_fog_value(self):
+        receiver = udp_client.SimpleUDPClient(self.ip, self.port)
+        receiver.send_message("/cmd", ["Call plugin 8"])
+        
+        
+        
+        
     #send command function
     def send_data(self,value, cmd , msg = None):
         # if its a message command, build the message

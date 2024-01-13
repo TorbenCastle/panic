@@ -70,7 +70,7 @@ class GuiHandler:
         
     def create_gui(self):
         self.root.title("INSTITUT FUER ZAHLENDREHER")
-        self.root.geometry("800x550")
+        self.root.geometry("800x650")
         self.root.resizable(True, True)  # Make the window resizable
 
         # Set the background color of the root window
@@ -131,7 +131,7 @@ class GuiHandler:
         # Command Line
         self.command_line = tk.Entry(self.scroll_frame, bg="#CCCCCC", fg="black", width=5 )  
         self.command_line.grid(row=6, column=0, columnspan=6, pady=(0, 5), sticky="nsew")
-
+       
         # Send Button
         self.send_button = tk.Button(self.scroll_frame, text="Send", command=lambda: self.button_function(1), bg=self.bg_color, fg="black", width=4 )
         self.send_button.grid(row=6, column=5, sticky="e" )
@@ -611,6 +611,7 @@ class ShowDataPopup(PopupWindow):
             # Command Line
             self.chat_line = tk.Entry(self.mid_frame, bg="#CCCCCC", fg="black", width=5)
             self.chat_line.grid(row=1, column=0, columnspan=6, pady=(0, 5), sticky="nsew")
+            
 
             self.send_chat_button = tk.Button(self.mid_frame, text="Send", command=self.send_chat, width=4)
             self.send_chat_button.grid(row=1, column=1, sticky="e")

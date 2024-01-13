@@ -53,7 +53,7 @@ class File_handler:
         elif input_file == "log":
             # For non-config files, read line by line
             for file_name in os.listdir(folder_path):
-                if file_name.endswith(".ini"):
+                if file_name.endswith("log.ini"):
                     file_path = os.path.join(folder_path, file_name)
                     with open(file_path, 'r') as file:
                         for line in file:
@@ -99,6 +99,21 @@ class File_handler:
             with open(log_file_path, 'a') as log_file:
                 # Append the log entry to a new line in the log file
                 log_file.write(f"{log_entry}\n")
+                
+
+        except Exception as e:
+            self.gui.print_command_log(f"Error writing to log file: {e}")
+            
+    def write_fog_log(self, fog_log_entry):
+        log_file_path = os.path.join("data/log", 'log_fog.ini')
+
+        try:
+            if not os.path.exists(self.log_folder):
+                os.makedirs(self.log_folder)
+
+            with open(log_file_path, 'a') as log_file:
+                # Append the log entry to a new line in the log file
+                fog_log_file.write(f"{fog_log_entry}\n")
                 
 
         except Exception as e:

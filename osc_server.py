@@ -45,7 +45,9 @@ class Osc_server:
         
         #i dont know yet, why i cant start the server somewhere else - fix it later
         self.dispatcher = dispatcher
-        self.dispatcher.map("/cmd" , self.receive_command)
+        self.dispatcher.set_default_handler(self.receive_command)
+        
+
         self.server = ThreadingOSCUDPServer((address, port), dispatcher)        
         self.handle_thread = None
         self.exit_flag = False
@@ -53,9 +55,12 @@ class Osc_server:
         self.receive_queue = queue.Queue()
         self.send_queue = queue.Queue()
         
+        
+        
+        
         #the list of all commands that can be send to a client and received from a client
-        self.send_cmd_list      =   ["status"  , "stop"    , "ping", "release" , "debug" , "exta", "msg" ]
-        self.receive_cmd_list   =   ["trigger" , "confirm" , "ping", "release" , "debug" , "relay", "extra" , "ping_all","msg"]
+        self.send_cmd_list      =   ["status"  , "stop"    , "ping", "release" , "debug" , "exta", "msg" ,  "ping_all"]
+        self.receive_cmd_list   =   ["trigger" , "confirm" , "ping", "release" , "debug" , "relay", "extra" ,"msg" , "fog_on" , "fog_off" , "fog_value"]
         self.client_attribute   =   ["name"    , "client_id"      , "ip"  , "port"    , "client_type"  ]
         
         self.c_station = None  # Variable to store the C-type station
@@ -79,19 +84,21 @@ class Osc_server:
 
         self.status_timer = None  # Initialize the status timer to None
         self.ping_timer = time.time()  # Initialize the ping timer to None
+        self.if_fog_on_timer = 0
         self.relay_timer = None
         self.relay_duration = 15
         self.relay_is_on = False
-
+        
+        self.fog_on = False
+        self.fog_value = 0
+        self.fog_request_timer = 0
+        self.fog_duration = 0
         #index for the roating ping command
         self.client_ping_index = 0
         
-        self.relay_pin = 18  
+        
         # is this programm is on a raspberry pi, setup the relay pin
-        if on_raspberry_pi:
-            # Code specific to Raspberry Pi with GPIO
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.relay_pin, GPIO.OUT)
+  
 
         self.gui.print_command("Server started")
         time.sleep(0.4)
@@ -131,11 +138,21 @@ class Osc_server:
             
             #check if its time to switch off the relay    
             self.check_relay_timer()
+            
+            #if fog is on get values
+            if self.fog_on:
+                self.get_fog_value()
                     
     #listen to incoming messages, the dispatcher is calling this function and its filter is "/cmd" and take the command to the receive queue
     def receive_command(self, address, *args):        
         self.gui.print_command_log(f"Received command: {address},{args}")  # Print the full received command to the GUI command line
-        self.receive_queue.put(args)
+        if address == "/cmd":
+            self.receive_queue.put(args)
+        
+                
+            
+        
+
         
 
     #get tuples from received commands from queue
@@ -191,7 +208,10 @@ class Osc_server:
             "debug": lambda: self.gui.print_command("Debug message"),
             "extra": lambda: self.gui.print_command("Extra message"),
             "special": lambda: self.gui.print_command("Special message"),
-            "relay": self.relay_on
+            "fog_on": lambda: self.toggle_fog_on(),
+            "fog_off": lambda: self.toggle_fog_off(),
+            "fog_value": lambda: self.set_fog_value(command_value),
+            "relay": lambda: self.received_relay_command(client)
             }
         action = command_actions.get(command, lambda: self.gui.print_command(f"Command not found: {command}"))
         action()
@@ -353,6 +373,7 @@ class Osc_server:
        #if a the server gets a "corfirm" command it                        
     #Send "stop" command to all B and C stations and update the gui   
     
+ 
 
     #sending commands from queue
     def send_queue_function(self):
@@ -374,9 +395,31 @@ class Osc_server:
             self.gui.print_command_log(f"Send queue error: {e}")
             return
         
-                
+    def set_fog_value(self, value):
+        self.fog_value = value
+        self.gui.print_command(self.fog_value)
 
+    def toggle_fog_on(self):
+        self.fog_on = True
+        self.osc_clients[6].request_fog_value() # request the fog value at on
+        self.fog_duration = time.time()
         
+    def toggle_fog_off(self):
+        self.fog_on = False
+        self.get_fog_value()
+       
+        
+        
+    def get_fog_value(self):
+        elapsed_time = time.time() - self.fog_request_timer
+        if elapsed_time >= 0.5:
+            self.fog_request_timer = time.time() # reset fog request timer
+            self.fog_value = self.osc_clients[6].request_fog_value()
+            self.fog_duration = time.time() - self.fog_duration 
+            self.gui.print_command(f"duration: {self.fog_duration}")
+            entry = (f"time {self.fog_duration} fader: {self.fog_value}")
+            self.text_handler.write_fog_log(entry)
+           
 #################################  GUI COMMANDLINE #################################
 
 #this function is called when a command is entered in the gui commandline
@@ -565,6 +608,7 @@ class Osc_server:
                         return client
 
                 
+                
                 print(f"Client {search_value} with {client_value}: and {cmd_id} {input_search_value} not in the list")
                 return None
         except Exception as e:
@@ -630,25 +674,25 @@ class Osc_server:
         
     #turning on a relay if not already on
     def relay_on(self):
-        if not relay_is_on:
+        if not self.relay_is_on:
             self.relay_timer = time.time()
             if on_raspberry_pi:           
-                self.GPIO.output(self.relay_pin, GPIO.HIGH) 
+                GPIO.output(self.relay_pin, GPIO.HIGH) 
             else:
                 self.gui.print_command("Simulation __relay on__")
-            relay_is_on = True   
+            self.relay_is_on = True   
     #or off     
     #turning off a relay         
     def relay_off(self):
-        if relay_is_on:
+        if self.relay_is_on:
             self.relay_timer = 0
-            if not relay_is_on:
-                relay_is_on = True
+            if not self.relay_is_on:
+                self.relay_is_on = True
             if on_raspberry_pi:           
-                self.GPIO.output(self.relay_pin, GPIO.HIGH) 
+                GPIO.output(self.relay_pin, GPIO.LOW) 
             else:
                 self.gui.print_command("Simulation  __relay off__")
-            relay_is_on = False
+            self.relay_is_on = False
     #check if the relay is on and if the time is up
     def check_relay_timer(self):
         if self.relay_is_on:
