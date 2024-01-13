@@ -534,7 +534,7 @@ class Osc_server:
 
 
     def get_client(self, search_value):
-        print(search_value)
+        
         try:
             input_search_value = search_value
             client_value = None

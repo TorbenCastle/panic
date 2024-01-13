@@ -260,9 +260,10 @@ class GuiHandler:
         elif button_id == 5:
             self.toggle_logging()  
             if not self.logging:
-                self.toggle_log_button.config(relyief=tk.RAISED)
+                self.toggle_log_button.config(relief=tk.RAISED)
             else:
                 self.toggle_log_button.config(relief=tk.SUNKEN)
+                
         elif button_id == 6:            
             self.show_popup("Chat")
             
@@ -385,7 +386,7 @@ class GuiHandler:
         local_time = datetime.now()
         format_time = local_time.strftime("%H:%M") 
         new_message = f"{format_time} {sender}: \n {message}"
-    
+        self.print_command(message)
         # Append the new message to the chat messages list
         self.chat_messages.append(new_message)
 
@@ -401,7 +402,8 @@ class GuiHandler:
             
             self.osc_server.set_exit_flag()
             self.osc_server.handle_thread.join()
-            if on_raspberry_pi:GPIO.cleanup()            
+            if on_raspberry_pi:
+                GPIO.cleanup()            
             self.osc_server.server.shutdown()
             print("programm closed")
             sys.exit(0)

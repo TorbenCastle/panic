@@ -10,6 +10,7 @@ from osc_client import Osc_client
 try:
     import RPi.GPIO as GPIO
     on_raspberry_pi = True
+    GPIO.cleanup() 
 except ImportError:
     on_raspberry_pi = False
 
@@ -45,9 +46,10 @@ def main():
        #if running on an raspberry, it will trigger the relay on pin 18
 
     except Exception as e:
+        if on_raspberry_pi:GPIO.cleanup() 
         # Handle exceptions here
         print(f"Error: {e}")
-        if on_raspberry_pi:GPIO.cleanup()  
+         
 if __name__ == "__main__":
     
     main()
