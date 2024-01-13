@@ -413,12 +413,13 @@ class Osc_server:
     def get_fog_value(self):
         elapsed_time = time.time() - self.fog_request_timer
         if elapsed_time >= 0.5:
-            self.fog_request_timer = time.time() # reset fog request timer
+            self.fog_request_timer = time.time()  # reset fog request timer
             self.fog_value = self.osc_clients[6].request_fog_value()
-            self.fog_duration = time.time() - self.fog_duration 
+            self.fog_duration = elapsed_time  # Update fog duration with the elapsed time
             self.gui.print_command(f"duration: {self.fog_duration}")
             entry = (f"time {self.fog_duration} fader: {self.fog_value}")
             self.text_handler.write_fog_log(entry)
+
            
 #################################  GUI COMMANDLINE #################################
 
