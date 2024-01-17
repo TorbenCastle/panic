@@ -4,10 +4,11 @@ import tkinter as tk
 from tkinter import scrolledtext , ttk 
 import sys
 from osc_client import Osc_client
+
 from commands import Commands
 from configparser import ConfigParser
 from datetime import datetime
-#from panic_handler import osc_clients
+
 try:
     import RPi.GPIO as GPIO
     on_raspberry_pi = True
@@ -38,6 +39,7 @@ class GuiHandler:
         self.info_window = None
         self.exit_window = None  
         self.chat_window = None
+        self.graph_window = None
         self.popup_statuses = {}
         
        
@@ -156,18 +158,21 @@ class GuiHandler:
         # Show ToggleLog Button
 
         self.toggle_log_button = tk.Button(self.bot_frame, text="Show all cmd", command=lambda: self.button_function(5), bg=self.bg_color, fg="black")
-        self.toggle_log_button.grid(row=2, column=2, pady=5, padx=20, sticky="nsew", columnspan=1)
+        self.toggle_log_button.grid(row=0, column=3, pady=5, padx=20, sticky="nsew", columnspan=1)
         self.main_button_list.append(self.toggle_log_button)
         
         # Show Chat Button
 
         self.chat_button = tk.Button(self.bot_frame, text="Chat", command=lambda: self.button_function(6), bg=self.bg_color, fg="black")
-        self.chat_button.grid(row=1, column=0, pady=5, padx=20, sticky="nsew")
+        self.chat_button.grid(row=1, column=0, pady=5, columnspan=1, padx=20, sticky="nsew")
         self.main_button_list.append(self.chat_button)
        
+        self.graph_button = tk.Button(self.bot_frame, text="Fog graph", command=lambda: self.button_function(7), bg=self.bg_color, fg="black")
+        self.graph_button.grid(row=2, column=2, pady=5,columnspan=1, padx=20, sticky="nsew")
+        self.main_button_list.append(self.graph_button)
         
         # Exit Button
-        self.exit_button = tk.Button(self.bot_frame , text="EXIT", command=lambda: self.button_function(7), bg=self.bg_color, fg="black", width= 10 , heigh= 3)
+        self.exit_button = tk.Button(self.bot_frame , text="EXIT", command=lambda: self.button_function(8), bg=self.bg_color, fg="black", width= 10 , heigh= 3)
         self.exit_button.grid(row=2, column=3, rowspan=2, columnspan=2, pady=10, padx=200,  sticky="es")
         self.main_button_list.append(self.exit_button)
 
@@ -268,8 +273,12 @@ class GuiHandler:
             self.show_popup("Chat")
             
         elif button_id == 7:            
+             self.show_popup("Graph") 
+            
+        elif button_id == 8:            
              self.show_popup("Exit")
              
+           
        
             
         else:
@@ -328,7 +337,13 @@ class GuiHandler:
                 self.chat_window.grab_set()  # Make the popup modal
                 self.chat_window.transient(self.root)  # Set the popup as transient to the main window
 
+            elif(popup_id == "Graph"):
+                self.print_command("Graph not functional yet")
+                #self.graph_window = ShowDataPopup(self.root, self, popup_id, "Fog time graph", "1000x600", "graph")
+                #self.graph_window.grab_set()  # Make the popup modal
+                #self.graph_window.transient(self.root)  # Set the popup as transient to the main window
 
+            
             elif(popup_id == "Exit"):
                 self.exit_window = ShowDataPopup(self.root, self, popup_id, "CONFIRMATION", "200x120", "close_program")
                 self.exit_window.grab_set()  # Make the popup modal
@@ -419,44 +434,31 @@ class PopupWindow(tk.Toplevel):
         
         self.gui_handler = gui_handler
         self.osc_clients = gui_handler.osc_clients
-        # List to store all frames
-        self.frames = []
-        self.buttons = []
-        # Set the title and geometry of the window
+        self.text_handler = gui_handler.text_handler
         self.title(title)
-        self.geometry = geometry
+        self.geometry(geometry)
         
         self.popup_id = popup_id
       
-        # Main Frame
         self.main_frame = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         self.main_frame.pack(expand=True, fill="both")
-        self.frames.append(self.main_frame)
-        # Head Frame
+
         self.head_frame = tk.Frame(self.main_frame, bg="white")
         self.head_frame.pack(side="top", fill=tk.BOTH, expand=True)
-        self.frames.append(self.head_frame)
                            
-        # Mid Frame
         self.mid_frame = tk.Frame(self.main_frame, bg="white")
         self.mid_frame.pack(side="top", fill=tk.BOTH, expand=True)
-        self.frames.append(self.mid_frame)
-        # Bottom Frame
+        
         self.bottom_frame = tk.Frame(self.main_frame, bg="white")
         self.bottom_frame.pack(side="bottom", fill=tk.BOTH, expand=True)
-        # Load close button
+
         self.close_button = tk.Button(self.bottom_frame, text="Close", command=self.on_close)
         self.close_button.pack(side="right", pady=10, padx=10)
 
-        self.frames.append(self.bottom_frame)
-        
-     
 
     def on_close(self):
-        # Update the flag in the main GUI when the popup is closed
-        if self.popup_id in self.gui_handler.popup_statuses:
-            self.gui_handler.popup_statuses[self.popup_id] = 0
         self.destroy()
+
 
         
 
@@ -539,14 +541,14 @@ class EditClientWindow(PopupWindow):
             self.gui_handler.print_osc_client(selected_client , True)
             
         self.gui_handler.text_handler.write_config(self.osc_clients)
-        self.gui_handler.update_labels()
+        
         
 class ShowDataPopup(PopupWindow):
     def __init__(self, parent, gui_handler, popup_id , name=None, size=None,  arg1=None, arg2=None, arg3=None , arg4=None):
         if(name == None):
             name = "Window " + str(popup_id)
         if(size == None):
-            size = "400x500"        
+            size = "400x700"        
         super().__init__(parent, gui_handler, name , size, popup_id)
                       
         self.arg1 = arg1
@@ -580,7 +582,7 @@ class ShowDataPopup(PopupWindow):
             
 
         if arg1 == "chat":
-            self.size = ("600x400")
+            self.size = ("500x800")
             self.chat_text = scrolledtext.ScrolledText(self.mid_frame, wrap=tk.WORD, width=50, height=30)
             self.chat_text.grid(row=0, column=0, padx=10, pady=10)
 
@@ -600,7 +602,7 @@ class ShowDataPopup(PopupWindow):
                     message = str(message)
                     self.gui_handler.osc_server.send_msg(7, message)
                     self.chat_line.delete(0, tk.END)
-                    self.gui_handler.create_chat_message("Server", message)
+                    self.gui_handler.create_chat_message("me", message)
 
             self.update_chat = update_chat
             self.send_chat = send_chat

@@ -6,6 +6,7 @@ from osc_client import Osc_client
 from osc_server import Osc_server
 from gui import GuiHandler
 from file_handler import File_handler
+
 from osc_client import Osc_client
 try:
     import RPi.GPIO as GPIO
@@ -18,13 +19,18 @@ except ImportError:
 
 def main():
     try:
+          
+ 
+            
+            
+            
         relay_pin = 18      
         if on_raspberry_pi:
             # Code specific to Raspberry Pi with GPIO
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(relay_pin, GPIO.OUT)
             GPIO.output(relay_pin, GPIO.LOW)
-        
+       
         server_commands = commands.Commands("server_commands")
         text_handler = File_handler("text_handler")
         
@@ -37,7 +43,7 @@ def main():
         gui = GuiHandler(root, osc_clients , "#DDDDDD", "#FFFFFF", "#000000", text_handler ,  server_commands)
         
         osc_dispatcher = Dispatcher()   
-        osc_server = Osc_server(osc_dispatcher, "0.0.0.0", 9090, osc_clients , gui , server_commands , text_handler)
+        osc_server = Osc_server(osc_dispatcher, "0.0.0.0", 9090, osc_clients , gui , server_commands , text_handler , relay_pin)
         
         # Pass a reference to osc_server to text_handler
         gui.set_osc_server(osc_server)

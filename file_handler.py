@@ -1,7 +1,11 @@
+import datetime
 import os
 from configparser import ConfigParser
 from osc_client import Osc_client
+import datetime
+from datetime import datetime
 
+import threading
 
 
 class File_handler:
@@ -12,8 +16,14 @@ class File_handler:
         self.log_folder = "data/log"     
         self.info_folder = "data/info"
         self.gui = None
+        self.fog_log_bool = False
+        self.config = ConfigParser()      
+        self.lock = threading.Lock()
         
-
+    def get_fog_log_bool(self):
+        return self.fog_log_bool
+    
+    
     def set_gui(self, gui):
         self.gui = gui
 
@@ -72,11 +82,11 @@ class File_handler:
         return data
 
     def write_config(self, osc_objects):
-        config = ConfigParser()
+       
 
         for i, osc_object in enumerate(osc_objects, start=1):
             section_name = f"Client_{i}"
-            config[section_name] = {
+            self.config[section_name] = {
                 'name': osc_object.name,
                 'client_id': str(osc_object.client_id),
                 'ip': osc_object.ip,
@@ -86,35 +96,90 @@ class File_handler:
             self.gui.print_command_log(f"Writing config for {osc_object.name} {osc_object.client_type} {osc_object.client_id}")
         config_file_path = os.path.join(self.config_folder, 'config.ini')    
         with open(config_file_path, 'w') as configfile:
-            config.write(configfile)
+            self.config.write(configfile)
             configfile.flush()    
     
-    def write_log(self, log_entry):
-        log_file_path = os.path.join(self.log_folder, 'log.ini')
+    def write_log(self, log_entry , file):
+        with self.lock:
+        
+            try:
+                if not os.path.exists(self.log_folder):
+                    os.makedirs(self.log_folder)
+                log_file_path = os.path.join(self.log_folder, file) 
+                with open(log_file_path, 'a') as log_file:
+                    # Append the log entry to a new line in the log file
+                    log_file.write(f"{log_entry}\n")
+                    log_file.close()
 
-        try:
-            if not os.path.exists(self.log_folder):
-                os.makedirs(self.log_folder)
-
-            with open(log_file_path, 'a') as log_file:
-                # Append the log entry to a new line in the log file
-                log_file.write(f"{log_entry}\n")
-                
-
-        except Exception as e:
-            self.gui.print_command_log(f"Error writing to log file: {e}")
+            except Exception as e:
+                self.gui.print_command_log(f"Error writing to log file: {e}")
+     
             
-    def write_fog_log(self, fog_log_entry):
-        log_file_path = os.path.join("data/log", 'log_fog.ini')
 
-        try:
-            if not os.path.exists(self.log_folder):
-                os.makedirs(self.log_folder)
+    def get_last_fog_number(self):
+        file_path = "data/log/fog_log.ini"
+        self.config.read(file_path)
 
-            with open(log_file_path, 'a') as log_file:
-                # Append the log entry to a new line in the log file
-                fog_log_file.write(f"{fog_log_entry}\n")
+        for section_name in self.config.sections():
+            fog_number = int(section_name.split()[1])
+        return fog_number
+
+
+
+
+    # write fogmachine data to ini
+    def write_fog_log(self, fog_time_values):
+        with self.lock:
+            try:
+                fog_number = self.get_last_fog_number() +1                
+                if fog_number is None or 0:
+                    fog_number = 1
+
+                # Create a new section with the incremented fog number
+                section_name = f'FOG {fog_number}'
+                self.config.add_section(section_name)
+
+                for i, (timestamp, value) in enumerate(fog_time_values, start=1):
+                    self.config.set(section_name, f'time_value_{i}', f'{timestamp}')
+                    self.config.set(section_name, f'fog_value_{i}', f'{value}')
+                    
+                log_file_path = os.path.join(self.log_folder, 'fog_log.ini')
+                with open(log_file_path, 'w') as fog_log_file:
+                    self.config.write(fog_log_file)
+                    fog_log_file.close()
+                    print("FOG LOG DONE")
+
+            except Exception as e:
+                print(f"Error writing to log file: {e}")
                 
 
-        except Exception as e:
-            self.gui.print_command_log(f"Error writing to log file: {e}")
+
+      # read fog log to graph       
+    
+    def process_fog_log(self):
+        result = []
+        file_path = "data/log/log_fog.ini"
+        self.config.read(file_path)
+
+        for section_name in self.config.sections():
+            values_list = []  # Reset values_list for each section
+            print(f"Processing section: {section_name}")
+            for key, value in self.config.items(section_name):
+                # Check if the key is in the format 'time_value_' or 'fog_value_'
+                if key.startswith('time_value_'):
+                    time_str = value.strip()
+                    date_object = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+                elif key.startswith('fog_value_'):
+                    # Ensure 'fog_value_' key has a corresponding value
+                    if value:
+                        fader_value = float(value.strip())
+                        # Append the pair to the values_list
+                        values_list.append((date_object, fader_value))
+                    else:
+                        print(f"Warning: No value found for key {key} in section {section_name}")
+        
+            print(f"Values for section {section_name}: {values_list}")
+            result.append((section_name, values_list))
+
+        return result
+    

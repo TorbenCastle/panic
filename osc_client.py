@@ -38,26 +38,24 @@ class Osc_client:
             if len(args) == 0:
                 self.gui.print_command_log("Error: Invalid number of arguments for 'msg' command")
                 return
-           
+            self.gui.print_command_log(f"Sending {message} command to grandma3")
         msg = " ".join(map(str, args))
         msg = msg.strip()
         message = f'setUserVar "message_in" "{str(msg)}"'
         
                 
-        self.gui.print_command(f"Sending {message} command to grandma3")
+        
         receiver.send_message("/cmd", [message])
-        time.sleep(0.1)
+        time.sleep(0.01)
         receiver.send_message("/cmd", ["Call plugin 6"])  
 
-    def request_fog_value(self):
-        receiver = udp_client.SimpleUDPClient(self.ip, self.port)
-        receiver.send_message("/cmd", ["Call plugin 8"])
-        
-        
-        
+
+    
         
     #send command function
     def send_data(self,value, cmd , msg = None):
+        receiver = udp_client.SimpleUDPClient(self.ip, self.port) #set up udp client receiver
+        
         # if its a message command, build the message
         if(cmd in self.message_commands):
             self.send_msg_to_client(msg)
@@ -66,26 +64,29 @@ class Osc_client:
         else:
             id_value = self.client_id   
         
-        #set up the udp client before sending the command
-        receiver = udp_client.SimpleUDPClient(self.ip, self.port)
-        #the address ("/cmd") can be filtered by the osc client)
+        
+        #the address ("/cmd") can be filtered by the osc client but not at grandma)
         #gma3 is recieving a command with only one argument
         if self.client_type == "gma3":
             receiver.send_message("/cmd", [cmd])
             self.gui.print_command_log(f"Sending /cmd,{cmd}")
+            
+
         else:       
             receiver.send_message("/cmd", [id_value , cmd])
            
             self.gui.print_command_log(f"Sending /cmd,{id_value},{cmd}")
-        
-    def get_command(self, cmd , val ):
             
-        #if the client is a gma3, the command is different, status command can send to different sequences
+
+   #each client can have its own command message     
+    def get_command(self, cmd , val ):
+        
+        #the status command is adding the trigger_id, to start different sequences    
+        #grandma3 commands are different
         if self.client_type == "gma3":
             return(self.get_C_command(val, str(cmd)))
-        
-        #the status command is adding the trigger if, to start different sequences
-        elif cmd == "status":
+               
+        elif "status" in cmd: 
                 cmd = (f"status {str(val)}")
         else:
             val = self.client_id
@@ -219,7 +220,7 @@ class Osc_client:
             self.timer_start = None
 
     def get_response_time(self):
-        self.response_time = int((time.time() - self.timer_start)*1000)
+        self.response_time = int((time.time() - self.timer_start)*100)
         self.online = True        
         return self.response_time
     

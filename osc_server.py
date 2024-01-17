@@ -2,11 +2,13 @@
 #!/usr/bin/env python3.11
 from configparser import ConfigParser
 from re import A
+import socket
 from tempfile import TemporaryDirectory
 
 import tkinter as tk
 from tkinter import SE, ttk, messagebox
 from tkinter import scrolledtext
+
 from pythonosc import osc_message_builder, udp_client, dispatcher
 from pythonosc import udp_client
 from pythonosc.osc_server import ThreadingOSCUDPServer
@@ -34,7 +36,7 @@ except ImportError:
 # The dispatcher is used to map OSC addresses to handler functions.
 # The server is used to listen for OSC messages on the specified address and port.
 class Osc_server:
-    def __init__(self, dispatcher, address, port, clients, gui, commands ,text_handler):
+    def __init__(self, dispatcher, address, port, clients, gui, commands ,text_handler , relay_pin):
         
         self.address = address  # Fix typo in the attribute name
         self.port = port
@@ -85,21 +87,39 @@ class Osc_server:
         self.status_timer = None  # Initialize the status timer to None
         self.ping_timer = time.time()  # Initialize the ping timer to None
         self.if_fog_on_timer = 0
+        self.relay_pin = relay_pin
         self.relay_timer = None
         self.relay_duration = 15
         self.relay_is_on = False
         
         self.fog_on = False
-        self.fog_value = 0
-        self.fog_request_timer = 0
-        self.fog_duration = 0
+        self.fog_fader_value = 0
+        self.fog_time_values = []
+        
+        self.fog_event_id = 1 # needed to work with fog data
+        self.fog_readouts = 0
         #index for the roating ping command
         self.client_ping_index = 0
         
         
-        # is this programm is on a raspberry pi, setup the relay pin
+        #check if we are in location A or B to get the right grandma IP
+        if self.get_local_ip() == "10.187.177.128":
+            self.osc_clients[6].set_ip("10.187.189.151")
+        else:
+            self.osc_clients[6].set_ip("192.168.0.46")
   
 
+
+
+
+
+
+
+
+
+
+
+########################### PRINT INTO GUI AFTER INIT ##########################
         self.gui.print_command("Server started")
         time.sleep(0.4)
         self.gui.print_command(f"LISTENING ON {self.address}:{self.port}")
@@ -138,10 +158,7 @@ class Osc_server:
             
             #check if its time to switch off the relay    
             self.check_relay_timer()
-            
-            #if fog is on get values
-            if self.fog_on:
-                self.get_fog_value()
+                
                     
     #listen to incoming messages, the dispatcher is calling this function and its filter is "/cmd" and take the command to the receive queue
     def receive_command(self, address, *args):        
@@ -168,15 +185,16 @@ class Osc_server:
             return False
         
         #check if the first arg is an int, and if the int is in the client id list, if not exit the function
-        if isinstance(received_osc_msg[0] , int):
-            client_id = received_osc_msg[0]
-          
+        try:
+        
+            client_id = int(received_osc_msg[0])
             if client_id in self.client_id_list:
                 client = self.osc_clients[client_id-1]
-        else:
-           self.gui.print_command_log("Wrong ID")            
-           return False   
-        
+            else:
+               self.gui.print_command_log("ID not found")            
+               return False   
+        except:
+            self.gui.print_command_log("Wrong ID format") 
         
         command = received_osc_msg[1]
         if command not in self.receive_cmd_list:
@@ -223,16 +241,21 @@ class Osc_server:
     def received_button_command(self, trigger_client):
         # get the id of the trigger client
         trigger_id = trigger_client.get_client_id()
-        
+        self.gui.print_command(f"{trigger_client.get_name()} was pressed")
+        self.status_timer = time.time()           
         #exit the function if the client is already triggered
         if(trigger_client.get_button_was_pressed_state() == True):
-            self.gui.print_command_log("Client is already triggered")
+            self.gui.print_command(f"{tigger_client.get_name()} is already triggered")
             return         
         
-        else:
-            #send to all station clients a status update with the id value from trigger client
-            self.send_status_command(trigger_id)
-                    
+        
+        else:        
+            #send to all station clients a status update with the id value from trigger client        
+            for client in self.osc_clients:           
+                if client.get_client_type() != "A":
+                    self.send_status_command(client , trigger_id)
+                    print(f"trigger id: {trigger_id}")
+                        
             #set the button_was_pressed_state to true and update the gui        
             self.set_client_gui_status(trigger_client, "pressed")
             
@@ -252,7 +275,9 @@ class Osc_server:
         for client in self.trigger_osc_clients:            
                 if client.get_button_was_pressed_state() == True:
                     self.send_stop_command()
-                    self.gui.print_command(f"{client.get_name()} status confirmed")                                    
+                    self.gui.print_command(f"{client.get_name()} status confirmed")          
+                    self.relay_off()
+                    self.write_event_to_logfile( sender, "confirmed")                          
                 else:
                     # if no type A client is triggered, exit the function
                     self.gui.print_command_log(f"{sender} no status set before!")
@@ -262,7 +287,7 @@ class Osc_server:
         #get the elapsed time since a trigger  was set
         if self.status_timer is not None:
             elapsed_time = time.time() - self.status_timer
-            self.start_time = None
+            self.status_timer = None
             minutes = int(elapsed_time / 60)
             seconds = int(elapsed_time % 60)
             duration = (f"after {minutes}:{seconds}") 
@@ -277,7 +302,7 @@ class Osc_server:
             self.set_client_gui_status(client, "online")
             
         elif(client.get_ping_request_flag() == True):
-            self.gui.print_command_log(f"{client.name} ping: {client.get_response_time()} ms")            
+            self.gui.print_command(f"{client.name} ping: {client.get_response_time()} ms")            
             self.set_client_gui_status(client, "online")
 
        #if a station has confirmed a setted status, send a stop command to all stations, and update the clients and gui, write a log entry
@@ -301,15 +326,14 @@ class Osc_server:
 ###########################  SENDING COMMAND HANDLE   ############################
     #["status"  , "stop"    , "ping" , "release" , "debug" , "exta", "msg"]        
     #if a trigger was set, send a status command with the triggerd client to all stations.        
-    def send_status_command(self, trigger_client):
-        trigger_id = trigger_client.get_client_id()
-        for client in self.station_osc_clients:                 
-             self.send_queue.put(client.get_command("status" , trigger_id))
-             self.gui.print_command(f"Sending {self.trigger_osc_clients[trigger_id].get_name()}s status command to {client.get_name()}")
+    def send_status_command(self, client , trigger_id):
+                     
+        self.send_queue.put(client.get_command("status" , trigger_id))
+        #self.gui.print_command(f"Sending {self.osc_clients[client_id-1] } s status command to {client.get_name()}")
+
 
     #if the server received a confirmation, it is sending a stop command to all station clients                   
     def send_stop_command(self):
-        
         self.gui.print_command("Stopping all alerts")
        #send a stop command to all type B and C clients to stop a status funciton, and update the client and gui
         for client in self.station_osc_clients:
@@ -387,40 +411,42 @@ class Osc_server:
             command = send_msg[1]
             
             #check send command list, if its grandma, dont care about the command for now
-            if(command in self.send_cmd_list or client.client_type == "gma3"):
+            if(command in self.send_cmd_list or client.client_type == "gma3" or not "status" in commmand):
                 client.send_data(value , command)
             else:
-                self.gui.print_command(f"Send command not found")
+                self.gui.print_command(f"Queue: {command} command not found ")
         except Exception as e:
             self.gui.print_command_log(f"Send queue error: {e}")
             return
+    
+    #grandma sends the fog_value and the server writes it to log automaticly. when the seq is turned off, the grandma plugin stops
+    def set_fog_value(self, value):        
+        float_fog_value = "{:.3f}".format(float(value))
+        self.fog_fader_value = float_fog_value # format the string of value to float 
+        self.create_fog_time_value(self.fog_fader_value)     # create fog data tuple
         
-    def set_fog_value(self, value):
-        self.fog_value = value
-        self.gui.print_command(self.fog_value)
 
-    def toggle_fog_on(self):
-        self.fog_on = True
-        self.osc_clients[6].request_fog_value() # request the fog value at on
-        self.fog_duration = time.time()
+    def toggle_fog_on(self):       
+        self.fog_on = True        
+        # when fog is toggled on write into the fog_log.ini the start and fader value at time 0 then start the timer,
+        #  the fog_event_id and  local time is needed for further data calculation
+        self.fog_readouts += 1
         
+    #set boolean to false and write into log file
     def toggle_fog_off(self):
         self.fog_on = False
-        self.get_fog_value()
-       
-        
-        
-    def get_fog_value(self):
-        elapsed_time = time.time() - self.fog_request_timer
-        if elapsed_time >= 0.5:
-            self.fog_request_timer = time.time()  # reset fog request timer
-            self.fog_value = self.osc_clients[6].request_fog_value()
-            self.fog_duration = elapsed_time  # Update fog duration with the elapsed time
-            self.gui.print_command(f"duration: {self.fog_duration}")
-            entry = (f"time {self.fog_duration} fader: {self.fog_value}")
-            self.text_handler.write_fog_log(entry)
+        self.create_fog_time_value(self.fog_fader_value) # create entry for the last time
+        self.text_handler.write_fog_log(self.fog_time_values)
+        self.fog_time_values = [] #reset fog time values to an empty list
 
-           
+     #call the write_fog_log function every 0.5 second
+    def create_fog_time_value(self, float_fader_value):        
+         # reset fog request timer
+        self.fog_time_values.append((self.get_local_time() , float_fader_value)) # create time fader tuples
+        
+       
+   
+        
 #################################  GUI COMMANDLINE #################################
 
 #this function is called when a command is entered in the gui commandline
@@ -507,7 +533,7 @@ class Osc_server:
                       
     #commands the server can send      
     def commandline_send_cmd(self, client , command , msg):        
-              
+        print (command)
         if command in self.send_cmd_list:
             self.gui.print_command(f"Sending test: {command} to {client.get_name()} with {msg} ")
             #send gloabal status update to all station clients
@@ -516,6 +542,10 @@ class Osc_server:
             #send global stop command to all station clients   
             elif "stop" in command:
                 self.send_stop_command(client)
+            
+            elif "debug" in command:
+                self.send_debug_command(client)
+                
             elif "msg" in command:
                 client.send_msg("msg", msg)
             elif "var1" in command:
@@ -527,7 +557,7 @@ class Osc_server:
             else:
                 self.send_queue.put(client.get_command(client, command))     
         else:
-            self.gui.print_command(f"Send command not found")
+            self.gui.print_command(f"command not found")
             return
                             
         
@@ -633,20 +663,26 @@ class Osc_server:
         return matching_clients if matching_clients else None
 
      
-    def write_event_to_logfile(self,event , client=None , msg = None):
-        if client == None:
-            name = ""
-        else: name = client.get_name()
+    def write_event_to_logfile(self,event , name = None , msg = None):
+        if isinstance(name , Osc_client):
+            name = name.get_name()
+        elif name == None:
+            name = "SERVER"
+        
         if msg == None:
             msg = ""
             
         # Get the current local time
-        local_time = datetime.now()
-        format_time = local_time.strftime("%Y-%m-%d %H:%M")
+        time_stamp = self.get_local_time()
         
-        event_log_entry = f"{format_time}{name}{event}{msg}"
+        event_log_entry = f"{time_stamp} {name} {event} {msg}"
         self.gui.print_command_log(event_log_entry)
-        self.text_handler.write_log(event_log_entry)               
+        self.text_handler.write_log(event_log_entry, "log.ini")               
+    
+    def get_local_time(self):
+        local_time = datetime.now()
+        format_time = local_time.strftime("%Y-%m-%d %H:%M:%S")
+        return format_time
 
 
 
@@ -703,6 +739,25 @@ class Osc_server:
 
 
 
+    def get_local_ip(self):
+        try:
+            # Create a socket object
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        
+            # Connect to an external server (doesn't actually send data)
+            s.connect(("8.8.8.8", 80))
+        
+            # Get the local IP address
+            local_ip = s.getsockname()[0]
+        
+            # Close the socket
+            s.close()
+        
+            return local_ip
+        except socket.error as e:
+            print("Error:", e)
+            return None
 
+    
 
    
