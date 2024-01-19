@@ -62,7 +62,7 @@ class Osc_server:
         
         #the list of all commands that can be send to a client and received from a client
         self.send_cmd_list      =   ["status"  , "stop"    , "ping", "release" , "debug" , "exta", "msg" ,  "ping_all"]
-        self.receive_cmd_list   =   ["trigger" , "confirm" , "ping", "release" , "debug" , "relay", "extra" ,"msg" , "fog_on" , "fog_off" , "fog_value"]
+        self.receive_cmd_list   =   ["trigger" , "confirm" , "ping", "release" , "debug" , "relay", "extra" ,"msg" , "released", "fog_on" , "fog_off" , "fog_value"]
         self.client_attribute   =   ["name"    , "client_id"      , "ip"  , "port"    , "client_type"  ]
         
         self.c_station = None  # Variable to store the C-type station
@@ -225,7 +225,8 @@ class Osc_server:
             "msg": lambda: (self.gui.create_chat_message(client.get_name(),command_value)),
             "debug": lambda: self.gui.print_command("Debug message"),
             "extra": lambda: self.gui.print_command("Extra message"),
-            "special": lambda: self.gui.print_command("Special message"),
+            "special": lambda: self.gui.print_command("Special message"),            
+            "released": lambda: self.gui.print_command("released"),
             "fog_on": lambda: self.toggle_fog_on(),
             "fog_off": lambda: self.toggle_fog_off(),
             "fog_value": lambda: self.set_fog_value(command_value),
@@ -344,8 +345,7 @@ class Osc_server:
     #this function is to ping a client
     def send_ping_command(self, client):      
         self.set_client_gui_status(client, "requested")
-        client_command = client.get_command("ping",client.get_client_id())        
-        self.send_queue.put(client_command)
+        self.send_queue.put(client.get_command("ping",client.get_client_id()) )
         
       #send a ping command to the next client in the list, to check if a client is online,
         
@@ -411,10 +411,10 @@ class Osc_server:
             command = send_msg[1]
             
             #check send command list, if its grandma, dont care about the command for now
-            if(command in self.send_cmd_list or client.client_type == "gma3" or not "status" in commmand):
-                client.send_data(value , command)
-            else:
-                self.gui.print_command(f"Queue: {command} command not found ")
+            
+            client.send_data(value , command)
+            
+              
         except Exception as e:
             self.gui.print_command_log(f"Send queue error: {e}")
             return

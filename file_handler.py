@@ -117,11 +117,13 @@ class File_handler:
             
 
     def get_last_fog_number(self):
-        file_path = "data/log/fog_log.ini"
+        file_path = "data/log/log_fog.ini"
         self.config.read(file_path)
-
+        print("getting last fog number")
         for section_name in self.config.sections():
             fog_number = int(section_name.split()[1])
+           
+        
         return fog_number
 
 
@@ -143,7 +145,7 @@ class File_handler:
                     self.config.set(section_name, f'time_value_{i}', f'{timestamp}')
                     self.config.set(section_name, f'fog_value_{i}', f'{value}')
                     
-                log_file_path = os.path.join(self.log_folder, 'fog_log.ini')
+                log_file_path = os.path.join(self.log_folder, 'log_fog.ini')
                 with open(log_file_path, 'w') as fog_log_file:
                     self.config.write(fog_log_file)
                     fog_log_file.close()

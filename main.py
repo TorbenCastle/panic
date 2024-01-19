@@ -62,7 +62,9 @@ def main():
        #if running on an raspberry, it will trigger the relay on pin 18
 
     except Exception as e:
-        if on_raspberry_pi:GPIO.cleanup() 
+        if on_raspberry_pi:
+                GPIO.cleanup()    
+        
         # Handle exceptions here
         print(f"Error: {e}")
          
