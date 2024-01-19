@@ -38,7 +38,7 @@ class Osc_client:
             if len(args) == 0:
                 self.gui.print_command_log("Error: Invalid number of arguments for 'msg' command")
                 return
-            self.gui.print_command_log(f"Sending {message} command to grandma3")
+            
         msg = " ".join(map(str, args))
         msg = msg.strip()
         message = f'setUserVar "message_in" "{str(msg)}"'
@@ -48,7 +48,7 @@ class Osc_client:
         receiver.send_message("/cmd", [message])
         time.sleep(0.01)
         receiver.send_message("/cmd", ["Call plugin 6"])  
-
+        self.gui.print_command_log(f"Sending {message} command to grandma3")
 
     
         

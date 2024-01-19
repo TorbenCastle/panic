@@ -240,7 +240,6 @@ class Osc_server:
     def received_button_command(self, trigger_client):
         # get the id of the trigger client
         if(trigger_client.get_mode() == "special"):
-            print(trigger_client.get_mode())
             self.received_special_command(self.osc_clients[6])
             return
         #if the client is on normal mode, turn the relay on and send a status command to the clients
@@ -317,8 +316,9 @@ class Osc_server:
         #here we can add a function for further use    
         
     def received_released_command(self, client):
-        self.gui.print_command_log(f"{client.name} released the button")
-        self.send_released_command(self.osc_clients[6])
+        if(client.get_mode() == "special"):
+            self.gui.print_command_log(f"{client.name} released the button")
+            self.send_released_command(self.osc_clients[6])
         #here we can add a function for further use
 
     def received_msg_command(self, client, msg):
