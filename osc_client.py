@@ -17,7 +17,7 @@ class Osc_client:
         self.gui = None
         #self.trigger = False   # is true if the client is triggered by a type A client
         self.button_status = False
-        self.mode = "normal"
+        self.mode = "normal"   # we can set another mode to do different stuff
         
         #the status of the client if False, because the gui is not created yet
         #self.status = False
@@ -100,11 +100,11 @@ class Osc_client:
                     
 
         command_mappings = {
-            "status": f"Go+ Sequence {6000 + val}" if self.mode == "normal" else "On Sequence 6008",
+            "status": f"Go+ Sequence {6000 + val}",
             "stop": "Go+ Sequence 6009",
             "ping": "Go+ Sequence 6011",
             "debug": "Go+ Sequence 6006",
-            "special": "Go+ Sequence 6007",
+            "special": "On Sequence 6008",
             "released": "Off Sequence 6008",
             "confirm": "Go+ Sequence 6010",             
         }

@@ -89,7 +89,7 @@ class Osc_server:
         self.if_fog_on_timer = 0
         self.relay_pin = relay_pin
         self.relay_timer = None
-        self.relay_duration = 15
+        self.relay_duration = 60
         self.relay_is_on = False
         
         self.fog_on = False
@@ -219,14 +219,12 @@ class Osc_server:
         command_actions = {
             "ping": lambda: self.received_ping_command(client),
             "ping_all": lambda: self.received_ping_all_command(client),
-            "trigger": lambda: (self.received_button_command(client), self.relay_on()),
+            "trigger": lambda: (self.received_button_command(client)),
             "confirm": lambda: self.received_confirm_command(client),
-            "released": lambda: self.received_released_command(client),
+            "released": lambda: self.received_released_command(self.osc_clients[6]),
             "msg": lambda: (self.gui.create_chat_message(client.get_name(),command_value)),
             "debug": lambda: self.gui.print_command("Debug message"),
-            "extra": lambda: self.gui.print_command("Extra message"),
-            "special": lambda: self.gui.print_command("Special message"),            
-            "released": lambda: self.gui.print_command("released"),
+            "extra": lambda: self.gui.print_command("Extra message"),            
             "fog_on": lambda: self.toggle_fog_on(),
             "fog_off": lambda: self.toggle_fog_off(),
             "fog_value": lambda: self.set_fog_value(command_value),
@@ -241,12 +239,18 @@ class Osc_server:
     #if a trigger was not set before, the server will send a status to station clients, update the gui and writes a log entry
     def received_button_command(self, trigger_client):
         # get the id of the trigger client
+        if(trigger_client.get_mode() == "special"):
+            print(trigger_client.get_mode())
+            self.received_special_command(self.osc_clients[6])
+            return
+        #if the client is on normal mode, turn the relay on and send a status command to the clients
+        self.relay_on()   
         trigger_id = trigger_client.get_client_id()
         self.gui.print_command(f"{trigger_client.get_name()} was pressed")
         self.status_timer = time.time()           
         #exit the function if the client is already triggered
         if(trigger_client.get_button_was_pressed_state() == True):
-            self.gui.print_command(f"{tigger_client.get_name()} is already triggered")
+            self.gui.print_command(f"{trigger_client.get_name()} is already triggered")
             return         
         
         
@@ -307,9 +311,14 @@ class Osc_server:
             self.set_client_gui_status(client, "online")
 
        #if a station has confirmed a setted status, send a stop command to all stations, and update the clients and gui, write a log entry
-
+    def received_special_command(self, client):
+        self.gui.print_command_log(f"{client.name} special button CMD")
+        self.send_special_command(self.osc_clients[6])
+        #here we can add a function for further use    
+        
     def received_released_command(self, client):
         self.gui.print_command_log(f"{client.name} released the button")
+        self.send_released_command(self.osc_clients[6])
         #here we can add a function for further use
 
     def received_msg_command(self, client, msg):
@@ -349,10 +358,7 @@ class Osc_server:
         
       #send a ping command to the next client in the list, to check if a client is online,
         
-    def send_release_command(self, client):
-        self.send_queue.put(client.get_command("release" ,client.get_client_id()))
-        self.gui.print_command_log(f"Sending release command to {client.get_name()}")
-
+  
     def send_debug_command(self, client):
         self.send_queue.put(client.get_command("debug",client.get_client_id()))
         self.gui.print_command_log(f"Sending debug command to {client.get_name()}")
@@ -361,6 +367,9 @@ class Osc_server:
         self.send_queue.put(client.get_command("special",client.get_client_id()))
         self.gui.print_command_log(f"Sending extra command to {client.get_name()}")
         
+    def send_released_command(self, client):
+        self.send_queue.put(client.get_command("released" ,client.get_client_id()))
+        self.gui.print_command_log(f"Sending release command to {client.get_name()}")
 
     #send a chat message to a station
     def send_msg(self, client, msg):
